@@ -111,6 +111,15 @@ export default function App() {
           onExport={handleExport} onImport={handleImport} />
       )}
       <FooterBadge />
+      {/* Binding editor as overlay — rendered fixed to avoid overflow clipping */}
+      {editingKey && view === "launcher" && (
+        <BindingOverlay
+          keyChar={editingKey}
+          existingBinding={keyBindings[editingKey]}
+          onClose={() => setEditingKey(null)}
+          onRemove={() => handleRemoveBinding(editingKey)}
+        />
+      )}
     </div>
   );
 
@@ -246,43 +255,7 @@ function KeyGridView(p: LauncherViewProps) {
 // ── Key Cell ──
 function KeyCell(p: { keyChar: string; binding?: Binding; isEditing: boolean;
   onTrigger: () => void; onRemove: () => void }) {
-  const [bindStep, setBindStep] = useState<"type" | "form" | null>(null);
-  const [bindType, setBindType] = useState<string>("");
-  const [bindValue, setBindValue] = useState("");
-  const [bindName, setBindName] = useState("");
   const s = useStore;
-
-  // Reset on close
-  useEffect(() => { if (!p.isEditing) { setBindStep(null); setBindType(""); setBindValue(""); setBindName(""); } }, [p.isEditing]);
-
-  if (p.isEditing) {
-    return (
-      <div className="key-cell editing">
-        <div className="key-char">{p.keyChar}</div>
-        <div className="bind-popup">
-          {!bindStep ? (
-            <div className="bind-type-btns">
-              <button className="btb" onClick={() => { setBindType("app"); setBindStep("form"); }}>📦 应用</button>
-              <button className="btb" onClick={() => { setBindType("folder"); setBindStep("form"); }}>📁 文件夹</button>
-              <button className="btb" onClick={() => { setBindType("url"); setBindStep("form"); }}>🌐 网页</button>
-              <button className="btb" onClick={() => { setBindStep(null); showActionPicker(); }}>⚡ 操作</button>
-              {p.binding && <button className="btb danger" onClick={p.onRemove}>删除绑定</button>}
-              <button className="btb dim" onClick={() => s().setEditingKey(null)}>取消</button>
-            </div>
-          ) : (
-            <div className="bind-detail">
-              <button className="back-btn" onClick={() => setBindStep(null)}>← 返回</button>
-              {bindType === "app" || bindType === "folder" ? (
-                <BindFileForm type={bindType as "app"|"folder"} onDone={() => s().setEditingKey(null)} />
-              ) : (
-                <BindUrlForm onDone={() => s().setEditingKey(null)} />
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
 
   const icon = p.binding
     ? p.binding.type === "action" ? BUILTIN_ACTIONS.find(a => a.id === (p.binding as any).action)?.icon
@@ -290,8 +263,9 @@ function KeyCell(p: { keyChar: string; binding?: Binding; isEditing: boolean;
     : null;
 
   return (
-    <div className={`key-cell ${p.binding ? "bound" : ""}`}
-      onClick={p.onTrigger} onContextMenu={(e) => { e.preventDefault(); s().setEditingKey(p.keyChar); }}>
+    <div className={`key-cell ${p.binding ? "bound" : ""} ${p.isEditing ? "editing" : ""}`}
+      onClick={p.onTrigger} onContextMenu={(e) => { e.preventDefault(); s().setEditingKey(p.keyChar); }}
+      title={p.binding ? `${p.binding.type}: ${p.binding.name}` : `绑定到 ${p.keyChar}`}>
       <div className="key-char">{p.keyChar}</div>
       {p.binding && (
         <div className="binding-info">
@@ -301,16 +275,62 @@ function KeyCell(p: { keyChar: string; binding?: Binding; isEditing: boolean;
       )}
     </div>
   );
+}
 
-  function showActionPicker() {
-    const ac = BUILTIN_ACTIONS;
-    const doBind = (id: string, name: string) => {
-      bridge.setKeyBinding(p.keyChar, { type: "action", action: id, name } as any).then(() => {
-        bridge.getKeyBindings().then(kb => s().setKeyBindings(kb.bindings));
-      });
-    };
-    // Return to type selection; actions are shown inline in bind-type-btns already
-  }
+// ── Binding Overlay (fixed position, outside overflow container) ──
+function BindingOverlay(p: { keyChar: string; existingBinding?: Binding; onClose: () => void; onRemove: () => void }) {
+  const [step, setStep] = useState<"type" | "form" | null>(null);
+  const [bindType, setBindType] = useState<string>("");
+
+  const s = useStore;
+
+  // Close on Escape
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") p.onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [p]);
+
+  const handleActionBind = (actionId: string, actionName: string) => {
+    bridge.setKeyBinding(p.keyChar, { type: "action", action: actionId, name: actionName } as any).then(() => {
+      bridge.getKeyBindings().then(kb => s().setKeyBindings(kb.bindings));
+      p.onClose();
+    });
+  };
+
+  return (
+    <div className="bind-overlay" onClick={(e) => { if (e.target === e.currentTarget) p.onClose(); }}>
+      <div className="bind-popup-center">
+        <div className="bind-popup-header">
+          <span className="key-char-badge">{p.keyChar}</span>
+          <button className="close-btn" onClick={p.onClose}>✕</button>
+        </div>
+        {!step ? (
+          <div className="bind-type-btns">
+            <button className="btb" onClick={() => { setBindType("app"); setStep("form"); }}>📦 绑定应用</button>
+            <button className="btb" onClick={() => { setBindType("folder"); setStep("form"); }}>📁 绑定文件夹</button>
+            <button className="btb" onClick={() => { setBindType("url"); setStep("form"); }}>🌐 绑定网页</button>
+            {BUILTIN_ACTIONS.map(a => (
+              <button key={a.id} className="btb" onClick={() => handleActionBind(a.id, a.name)}>
+                {a.icon} {a.name}
+              </button>
+            ))}
+            {p.existingBinding && <button className="btb danger" onClick={p.onRemove}>🗑 删除绑定</button>}
+            <button className="btb dim" onClick={p.onClose}>取消</button>
+          </div>
+        ) : (
+          <div className="bind-detail">
+            <button className="back-btn" onClick={() => setStep(null)}>← 返回</button>
+            {bindType === "app" || bindType === "folder" ? (
+              <BindFileForm type={bindType as "app"|"folder"} onDone={p.onClose} />
+            ) : (
+              <BindUrlForm onDone={p.onClose} />
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ── Bind File Form (native picker) ──

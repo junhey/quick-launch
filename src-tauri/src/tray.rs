@@ -18,8 +18,8 @@ pub fn toggle_popup(app: &AppHandle, _tray_rect: Option<tauri::Rect>) {
             let mon_size = monitor.size();
             let scale = monitor.scale_factor();
             let win_size = win.outer_size().unwrap_or(tauri::PhysicalSize {
-                width: 640,
-                height: 400,
+                width: 680,
+                height: 460,
             });
             let x = mon_pos.x + (mon_size.width as i32 - win_size.width as i32) / 2;
             let y = mon_pos.y + (mon_size.height as i32 - win_size.height as i32) / 2
