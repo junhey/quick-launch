@@ -1,0 +1,19 @@
+# Compiled output
+node_modules/
+dist/
+build/
+.DS_Store
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.env
+.env.local
+
+# Tauri build target & lockfile
+src-tauri/target/
+src-tauri/Cargo.lock
+
+# Local config (never commit user bindings!)
+*.local.json
