@@ -7,7 +7,7 @@
 ![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)
 [![CI](https://github.com/junhey/quick-launch/actions/workflows/ci.yml/badge.svg)](https://github.com/junhey/quick-launch/actions/workflows/ci.yml)
 
-一个开源的 macOS 启动器，灵感来自 [浮光 FuGuang](https://fg.vkr.me/mac)。按下 `Control+Space` 呼出面板，将 App、文件夹、网页和内置操作绑定到 38 个按键上，熟悉后直接 `Control+Space` → 对应键，一秒触发。
+一个开源的 macOS 启动器。按下 `Control+Space` 呼出面板，将 App、文件夹、网页和内置操作绑定到 38 个按键上，熟悉后直接 `Control+Space` → 对应键，一秒触发。
 
 ## 特性
 
@@ -23,9 +23,9 @@
 
 ## 下载安装
 
-前往 [Releases](https://github.com/junhey/quick-launch/releases) 页面下载 `.dmg` 文件，拖入 Applications 即可使用。
+推送版本 tag（如 `v0.1.0`）后，GitHub Actions 自动构建并发布 `.dmg` 文件到 [Releases](https://github.com/junhey/quick-launch/releases) 页面，下载后拖入 Applications 即可使用。
 
-> 首次启动需在系统设置中授予辅助功能权限。
+> 首次启动需在系统设置中授予辅助功能权限。未签名版本需右键 → 打开绕过 Gatekeeper。
 
 ## 使用方法
 
@@ -98,7 +98,6 @@ quick-launch/
 
 ## 鸣谢
 
-- [浮光 FuGuang](https://fg.vkr.me/mac) — Control 呼出 + 按键直达交互范式灵感
 - [Tauri](https://tauri.app) — 跨平台桌面应用框架
 - [Raycast](https://raycast.com) / [Alfred](https://alfredapp.com) — 启动器产品设计参考
 

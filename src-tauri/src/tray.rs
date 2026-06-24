@@ -22,8 +22,7 @@ pub fn toggle_popup(app: &AppHandle, _tray_rect: Option<tauri::Rect>) {
                 height: 400,
             });
             let x = mon_pos.x + (mon_size.width as i32 - win_size.width as i32) / 2;
-            let y = mon_pos.y
-                + (mon_size.height as i32 - win_size.height as i32) / 2
+            let y = mon_pos.y + (mon_size.height as i32 - win_size.height as i32) / 2
                 - (40.0 * scale) as i32; // Shift up slightly from center
             let _ = win.set_position(tauri::PhysicalPosition { x, y });
         }
@@ -40,22 +39,13 @@ pub fn toggle_popup(app: &AppHandle, _tray_rect: Option<tauri::Rect>) {
 
 /// Build the system tray icon and menu.
 pub fn build_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    let show_item = MenuItem::with_id(
-        app,
-        "show",
-        "显示 Quick Launch",
-        true,
-        Some("Ctrl+Space"),
-    )?;
+    let show_item = MenuItem::with_id(app, "show", "显示 Quick Launch", true, Some("Ctrl+Space"))?;
     let quit_item = MenuItem::with_id(app, "quit", "退出", true, Some("CmdOrCtrl+Q"))?;
     let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
     // Use a simple template icon for now — will be replaced with custom icon
-    let icon = tauri::image::Image::new_owned(
-        include_bytes!("../icons/tray-icon.png").to_vec(),
-        32,
-        32,
-    );
+    let icon =
+        tauri::image::Image::new_owned(include_bytes!("../icons/tray-icon.png").to_vec(), 32, 32);
 
     TrayIconBuilder::with_id("main-tray")
         .icon(icon)
@@ -63,28 +53,24 @@ pub fn build_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         .tooltip("Quick Launch — Ctrl+Space")
         .menu(&menu)
         .show_menu_on_left_click(false)
-        .on_menu_event(|app, event| {
-            match event.id().as_ref() {
-                "show" => toggle_popup(app, None),
-                "quit" => app.exit(0),
-                _ => {}
-            }
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "show" => toggle_popup(app, None),
+            "quit" => app.exit(0),
+            _ => {}
         })
-        .on_tray_icon_event(|tray, event| {
-            match event {
-                TrayIconEvent::Click {
-                    button: MouseButton::Left,
-                    button_state: MouseButtonState::Up,
-                    ..
-                }
-                | TrayIconEvent::DoubleClick {
-                    button: MouseButton::Left,
-                    ..
-                } => {
-                    toggle_popup(tray.app_handle(), None);
-                }
-                _ => {}
+        .on_tray_icon_event(|tray, event| match event {
+            TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
             }
+            | TrayIconEvent::DoubleClick {
+                button: MouseButton::Left,
+                ..
+            } => {
+                toggle_popup(tray.app_handle(), None);
+            }
+            _ => {}
         })
         .build(app)?;
     Ok(())

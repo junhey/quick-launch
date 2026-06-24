@@ -9,7 +9,7 @@
 
 [中文](README.md) | English
 
-An open-source macOS launcher inspired by [FuGuang](https://fg.vkr.me/mac). Press `Control+Space` to summon the panel, bind apps, folders, URLs, and built-in actions to 38 keys. Once you're familiar with the layout, `Control+Space` → key triggers anything in under a second.
+An open-source macOS launcher. Press `Control+Space` to summon the panel, bind apps, folders, URLs, and built-in actions to 38 keys. Once you're familiar with the layout, `Control+Space` → key triggers anything in under a second.
 
 ## Features
 
@@ -25,9 +25,9 @@ An open-source macOS launcher inspired by [FuGuang](https://fg.vkr.me/mac). Pres
 
 ## Download
 
-Go to [Releases](https://github.com/junhey/quick-launch/releases) to download the `.dmg` file, drag to Applications.
+After pushing a version tag (e.g. `v0.1.0`), GitHub Actions automatically builds and publishes the `.dmg` to the [Releases](https://github.com/junhey/quick-launch/releases) page. Download and drag to Applications.
 
-> First launch requires granting Accessibility permission in System Settings.
+> First launch requires granting Accessibility permission in System Settings. Unsigned builds require right-click → Open to bypass Gatekeeper.
 
 ## Usage
 
@@ -100,7 +100,6 @@ quick-launch/
 
 ## Acknowledgments
 
-- [FuGuang](https://fg.vkr.me/mac) — Control + key interaction paradigm inspiration
 - [Tauri](https://tauri.app) — Cross-platform desktop framework
 - [Raycast](https://raycast.com) / [Alfred](https://alfredapp.com) — Launcher design reference
 

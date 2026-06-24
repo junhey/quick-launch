@@ -1,5 +1,5 @@
-use crate::state::Binding;
 use crate::app_launcher;
+use crate::state::Binding;
 
 /// Execute a binding action.
 pub fn execute(binding: &Binding) -> Result<(), String> {

@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/bridge.ts","./src/constants.ts","./src/main.tsx","./src/store.ts","./src/types.ts","./src/__tests__/constants.test.ts","./src/__tests__/fuzzy.test.ts","./src/__tests__/pinyin.test.ts","./src/__tests__/store.test.ts","./src/utils/fuzzy.ts","./src/utils/pinyin.ts"],"checkPending":true,"version":"5.9.3"}

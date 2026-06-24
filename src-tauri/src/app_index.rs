@@ -79,15 +79,17 @@ fn parse_app(app_path: &Path) -> Option<AppInfo> {
                 .to_string()
         });
 
-    let bundle_id =
-        read_plist_value(&plist_path, "CFBundleIdentifier").unwrap_or_default();
+    let bundle_id = read_plist_value(&plist_path, "CFBundleIdentifier").unwrap_or_default();
 
-    let icon_name =
-        read_plist_value(&plist_path, "CFBundleIconFile").unwrap_or_default();
+    let icon_name = read_plist_value(&plist_path, "CFBundleIconFile").unwrap_or_default();
     let icon_path = if !icon_name.is_empty() {
         // Try .icns and .tiff extensions
-        let icns = app_path.join("Contents/Resources").join(format!("{icon_name}.icns"));
-        let tiff = app_path.join("Contents/Resources").join(format!("{icon_name}.tiff"));
+        let icns = app_path
+            .join("Contents/Resources")
+            .join(format!("{icon_name}.icns"));
+        let tiff = app_path
+            .join("Contents/Resources")
+            .join(format!("{icon_name}.tiff"));
         if icns.exists() {
             Some(icns.to_string_lossy().to_string())
         } else if tiff.exists() {
@@ -110,7 +112,11 @@ fn parse_app(app_path: &Path) -> Option<AppInfo> {
 
 fn read_plist_value(plist_path: &Path, key: &str) -> Option<String> {
     std::process::Command::new("/usr/libexec/PlistBuddy")
-        .args(["-c", &format!("Print :{key}"), &plist_path.to_string_lossy()])
+        .args([
+            "-c",
+            &format!("Print :{key}"),
+            &plist_path.to_string_lossy(),
+        ])
         .output()
         .ok()
         .filter(|o| o.status.success())

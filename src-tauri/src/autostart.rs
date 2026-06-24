@@ -55,16 +55,28 @@ mod sm {
     unsafe fn main_app_service() -> Option<*mut AnyObject> {
         let cls = class()?;
         let svc: *mut AnyObject = unsafe { msg_send![cls, mainAppService] };
-        if svc.is_null() { None } else { Some(svc) }
+        if svc.is_null() {
+            None
+        } else {
+            Some(svc)
+        }
     }
 
     unsafe fn ns_error_message(err: *mut AnyObject) -> String {
-        if err.is_null() { return "unknown error".into(); }
+        if err.is_null() {
+            return "unknown error".into();
+        }
         let desc: *mut AnyObject = unsafe { msg_send![err, localizedDescription] };
-        if desc.is_null() { return "no description".into(); }
+        if desc.is_null() {
+            return "no description".into();
+        }
         let utf8: *const std::os::raw::c_char = unsafe { msg_send![desc, UTF8String] };
-        if utf8.is_null() { return "no utf8 description".into(); }
-        unsafe { CStr::from_ptr(utf8) }.to_string_lossy().into_owned()
+        if utf8.is_null() {
+            return "no utf8 description".into();
+        }
+        unsafe { CStr::from_ptr(utf8) }
+            .to_string_lossy()
+            .into_owned()
     }
 
     pub fn register() -> Result<(), String> {
@@ -72,7 +84,11 @@ mod sm {
             let svc = main_app_service().ok_or("SMAppService not available")?;
             let mut err: *mut AnyObject = std::ptr::null_mut();
             let ok: bool = msg_send![svc, registerAndReturnError: &mut err];
-            if ok { Ok(()) } else { Err(ns_error_message(err)) }
+            if ok {
+                Ok(())
+            } else {
+                Err(ns_error_message(err))
+            }
         }
     }
 
@@ -81,13 +97,19 @@ mod sm {
             let svc = main_app_service().ok_or("SMAppService not available")?;
             let mut err: *mut AnyObject = std::ptr::null_mut();
             let ok: bool = msg_send![svc, unregisterAndReturnError: &mut err];
-            if ok { Ok(()) } else { Err(ns_error_message(err)) }
+            if ok {
+                Ok(())
+            } else {
+                Err(ns_error_message(err))
+            }
         }
     }
 
     pub fn status() -> Status {
         unsafe {
-            let Some(svc) = main_app_service() else { return Status::NotFound; };
+            let Some(svc) = main_app_service() else {
+                return Status::NotFound;
+            };
             let s: isize = msg_send![svc, status];
             match s {
                 0 => Status::NotRegistered,
@@ -119,7 +141,9 @@ fn label(app: &tauri::AppHandle) -> String {
 
 #[cfg(target_os = "macos")]
 fn launch_agents_dir() -> PathBuf {
-    dirs::home_dir().unwrap_or_default().join("Library/LaunchAgents")
+    dirs::home_dir()
+        .unwrap_or_default()
+        .join("Library/LaunchAgents")
 }
 
 #[cfg(target_os = "macos")]
@@ -140,13 +164,19 @@ pub fn diagnose(app: &tauri::AppHandle) -> Diagnosis {
         .map(|o| o.status.success())
         .unwrap_or(false);
 
-    let agent_target = plist_exists.then(|| {
-        Command::new("/usr/libexec/PlistBuddy")
-            .args(["-c", "Print :ProgramArguments:0", &path.to_string_lossy()])
-            .output()
-            .ok()
-            .and_then(|o| o.status.success().then(|| String::from_utf8_lossy(&o.stdout).trim().to_string()))
-    }).flatten();
+    let agent_target = plist_exists
+        .then(|| {
+            Command::new("/usr/libexec/PlistBuddy")
+                .args(["-c", "Print :ProgramArguments:0", &path.to_string_lossy()])
+                .output()
+                .ok()
+                .and_then(|o| {
+                    o.status
+                        .success()
+                        .then(|| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                })
+        })
+        .flatten();
 
     let running_exe = std::env::current_exe()
         .ok()
@@ -156,24 +186,41 @@ pub fn diagnose(app: &tauri::AppHandle) -> Diagnosis {
     let sm_available = sm::available();
     let sm_status = sm_available.then(|| sm::status().as_str().to_string());
     let backend = Some(
-        if sm_available && in_app_bundle { "sm_app_service" } else { "launch_agent" }.to_string()
+        if sm_available && in_app_bundle {
+            "sm_app_service"
+        } else {
+            "launch_agent"
+        }
+        .to_string(),
     );
 
     Diagnosis {
-        backend, sm_status, in_app_bundle,
+        backend,
+        sm_status,
+        in_app_bundle,
         label: Some(lbl),
         plist_path: Some(path.display().to_string()),
-        plist_exists, launchctl_loaded, agent_target, running_exe,
+        plist_exists,
+        launchctl_loaded,
+        agent_target,
+        running_exe,
     }
 }
 
 #[cfg(not(target_os = "macos"))]
 pub fn diagnose(_app: &tauri::AppHandle) -> Diagnosis {
     Diagnosis {
-        backend: None, sm_status: None, in_app_bundle: false,
-        label: None, plist_path: None, plist_exists: false,
-        launchctl_loaded: false, agent_target: None,
-        running_exe: std::env::current_exe().ok().map(|p| p.display().to_string()),
+        backend: None,
+        sm_status: None,
+        in_app_bundle: false,
+        label: None,
+        plist_path: None,
+        plist_exists: false,
+        launchctl_loaded: false,
+        agent_target: None,
+        running_exe: std::env::current_exe()
+            .ok()
+            .map(|p| p.display().to_string()),
     }
 }
 
@@ -187,7 +234,9 @@ pub fn is_enabled(app: &tauri::AppHandle) -> bool {
 }
 
 #[cfg(not(target_os = "macos"))]
-pub fn is_enabled(_app: &tauri::AppHandle) -> bool { false }
+pub fn is_enabled(_app: &tauri::AppHandle) -> bool {
+    false
+}
 
 #[cfg(target_os = "macos")]
 pub fn set_enabled(app: &tauri::AppHandle, enabled: bool) -> Result<(), String> {
@@ -201,11 +250,17 @@ pub fn set_enabled(app: &tauri::AppHandle, enabled: bool) -> Result<(), String> 
         if sm::available() && is_in_app_bundle() {
             match sm::register() {
                 Ok(()) => {
-                    let _ = Command::new("launchctl").args(["bootout", &target]).output();
-                    if path.exists() { let _ = fs::remove_file(&path); }
+                    let _ = Command::new("launchctl")
+                        .args(["bootout", &target])
+                        .output();
+                    if path.exists() {
+                        let _ = fs::remove_file(&path);
+                    }
                     return Ok(());
                 }
-                Err(e) => eprintln!("autostart: SMAppService.register failed: {e}; falling back to LaunchAgent"),
+                Err(e) => eprintln!(
+                    "autostart: SMAppService.register failed: {e}; falling back to LaunchAgent"
+                ),
             }
         }
 
@@ -220,7 +275,9 @@ pub fn set_enabled(app: &tauri::AppHandle, enabled: bool) -> Result<(), String> 
             .map_err(|e| format!("current_exe: {e}"))?;
         let exe = exe.display().to_string();
 
-        let _ = Command::new("launchctl").args(["bootout", &target]).output();
+        let _ = Command::new("launchctl")
+            .args(["bootout", &target])
+            .output();
 
         let plist = format!(
             "{xml}\n{doctype}\n\
@@ -245,22 +302,35 @@ pub fn set_enabled(app: &tauri::AppHandle, enabled: bool) -> Result<(), String> 
             .output()
             .map_err(|e| format!("launchctl bootstrap: {e}"))?;
         if !out.status.success() {
-            let _ = Command::new("launchctl").args(["kickstart", &target]).output();
+            let _ = Command::new("launchctl")
+                .args(["kickstart", &target])
+                .output();
             if !is_enabled(app) {
-                return Err(format!("launchctl bootstrap failed: {}", String::from_utf8_lossy(&out.stderr).trim()));
+                return Err(format!(
+                    "launchctl bootstrap failed: {}",
+                    String::from_utf8_lossy(&out.stderr).trim()
+                ));
             }
         }
         Ok(())
     } else {
-        if sm::available() { let _ = sm::unregister(); }
-        let _ = Command::new("launchctl").args(["bootout", &target]).output();
-        if path.exists() { let _ = fs::remove_file(&path); }
+        if sm::available() {
+            let _ = sm::unregister();
+        }
+        let _ = Command::new("launchctl")
+            .args(["bootout", &target])
+            .output();
+        if path.exists() {
+            let _ = fs::remove_file(&path);
+        }
         Ok(())
     }
 }
 
 #[cfg(not(target_os = "macos"))]
-pub fn set_enabled(_app: &tauri::AppHandle, _enabled: bool) -> Result<(), String> { Ok(()) }
+pub fn set_enabled(_app: &tauri::AppHandle, _enabled: bool) -> Result<(), String> {
+    Ok(())
+}
 
 #[cfg(target_os = "macos")]
 pub fn open_system_login_items() -> Result<(), String> {
@@ -272,4 +342,6 @@ pub fn open_system_login_items() -> Result<(), String> {
 }
 
 #[cfg(not(target_os = "macos"))]
-pub fn open_system_login_items() -> Result<(), String> { Err("not supported".into()) }
+pub fn open_system_login_items() -> Result<(), String> {
+    Err("not supported".into())
+}
