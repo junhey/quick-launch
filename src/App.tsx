@@ -1,9 +1,11 @@
 import { useEffect, useCallback, useRef, useState } from "react";
 import { useStore } from "./store";
 import { bridge } from "./bridge";
+import { open } from "@tauri-apps/plugin-dialog";
 import { KEY_LAYOUT, BUILTIN_ACTIONS } from "./constants";
 import type { AppInfo, Binding, Config } from "./types";
 
+// ── Main App ──
 export default function App() {
   const {
     panelVisible, view, searchMode, searchQuery, searchResults,
@@ -14,9 +16,8 @@ export default function App() {
   } = useStore();
 
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // Listen for popup toggle from Rust
   useEffect(() => {
     const unlisten = bridge.onPopupToggle(() => {
       setPanelVisible(!useStore.getState().panelVisible);
@@ -24,101 +25,68 @@ export default function App() {
     return () => { unlisten.then((fn) => fn()); };
   }, [setPanelVisible]);
 
-  // Load config and key bindings on mount
   useEffect(() => {
     bridge.getConfig().then(setConfig).catch(console.error);
     bridge.getKeyBindings().then((kb) => setKeyBindings(kb.bindings)).catch(console.error);
   }, [setConfig, setKeyBindings]);
 
-  // Debounced search
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!query.trim()) {
-      setSearchResults([]);
-      return;
-    }
+    if (!query.trim()) { setSearchResults([]); return; }
     debounceRef.current = setTimeout(() => {
       bridge.searchApps(query).then(setSearchResults).catch(console.error);
-    }, 150);
+    }, 120);
   }, [setSearchQuery, setSearchResults]);
 
-  // Keyboard handler
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    // Esc: hide panel or exit search
-    if (e.key === "Escape") {
-      if (searchMode) {
-        resetSearch();
-      } else {
-        bridge.hidePopup();
-      }
+    if (editingKey && e.key === "Escape") {
+      setEditingKey(null);
       return;
     }
 
-    // Tab: toggle theme
+    if (e.key === "Escape") {
+      searchMode ? resetSearch() : bridge.hidePopup();
+      return;
+    }
     if (e.key === "Tab") {
       e.preventDefault();
-      const current = useStore.getState().theme;
-      const next = current === "light" ? "dark" : "light";
+      const next = useStore.getState().theme === "light" ? "dark" : "light";
       document.documentElement.setAttribute("data-theme", next);
       useStore.getState().setTheme(next);
       return;
     }
-
-    // Space: enter search mode
     if (e.key === " " && !searchMode && view === "launcher") {
       e.preventDefault();
       setSearchMode(true);
       setTimeout(() => searchInputRef.current?.focus(), 0);
       return;
     }
-
-    // In search mode: navigate results
     if (searchMode) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setSelectedIndex(Math.min(selectedIndex + 1, searchResults.length - 1));
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setSelectedIndex(Math.max(selectedIndex - 1, 0));
-      } else if (e.key === "Return") {
+      if (e.key === "ArrowDown") { e.preventDefault(); setSelectedIndex(Math.min(selectedIndex + 1, searchResults.length - 1)); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); setSelectedIndex(Math.max(selectedIndex - 1, 0)); }
+      else if (e.key === "Return") {
         e.preventDefault();
         const app = searchResults[selectedIndex];
-        if (app) {
-          bridge.launchApp(app.path).then(() => bridge.hidePopup()).catch(console.error);
-        }
-      } else if (/^[0-9]$/.test(e.key)) {
+        if (app) bridge.launchApp(app.path).then(() => bridge.hidePopup()).catch(console.error);
+      }
+      else if (/^[0-9]$/.test(e.key)) {
         const idx = e.key === "0" ? 9 : parseInt(e.key) - 1;
-        const app = searchResults[idx];
-        if (app) {
-          bridge.launchApp(app.path).then(() => bridge.hidePopup()).catch(console.error);
-        }
+        if (searchResults[idx]) bridge.launchApp(searchResults[idx].path).then(() => bridge.hidePopup()).catch(console.error);
       }
       return;
     }
-
-    // Launcher mode: check key bindings
     if (view === "launcher" && !searchMode) {
-      const upperKey = e.key.toUpperCase();
-      if (KEY_LAYOUT.flat().includes(upperKey)) {
-        const binding = keyBindings[upperKey];
-        if (binding) {
-          e.preventDefault();
-          bridge.executeBinding(upperKey).then(() => bridge.hidePopup()).catch(console.error);
-        }
+      const uk = e.key.toUpperCase();
+      if (KEY_LAYOUT.flat().includes(uk)) {
+        const b = keyBindings[uk];
+        if (b) { e.preventDefault(); bridge.executeBinding(uk).then(() => bridge.hidePopup()).catch(console.error); }
       }
-      // Open settings with comma
-      if (e.key === ",") {
-        e.preventDefault();
-        setView("settings");
-      }
+      if (e.key === ",") { e.preventDefault(); setView("settings"); }
     }
-
-    // Settings: Esc to go back
-    if (view === "settings" && e.key === "Escape") {
-      setView("launcher");
-    }
-  }, [searchMode, selectedIndex, searchResults, keyBindings, view, setSearchMode, setSelectedIndex, resetSearch, setView]);
+    if (view === "settings" && e.key === "Escape") setView("launcher");
+  }, [searchMode, selectedIndex, searchResults, keyBindings, view, editingKey,
+      setSearchMode, setSelectedIndex, resetSearch, setView, setEditingKey]);
 
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
@@ -129,358 +97,364 @@ export default function App() {
 
   return (
     <div className="app" data-theme={useStore.getState().theme}>
+      <HeaderBadge view={view} searchMode={searchMode} onSettings={() => setView("settings")} />
       {view === "launcher" ? (
         <LauncherView
-          searchMode={searchMode}
-          searchQuery={searchQuery}
-          searchResults={searchResults}
-          selectedIndex={selectedIndex}
-          editingKey={editingKey}
-          keyBindings={keyBindings}
-          onSearch={handleSearch}
-          searchInputRef={searchInputRef}
-          onKeyClick={handleKeyClick}
-          onKeyRightClick={handleKeyRightClick}
+          searchMode={searchMode} searchQuery={searchQuery} searchResults={searchResults}
+          selectedIndex={selectedIndex} editingKey={editingKey} keyBindings={keyBindings}
+          onSearch={handleSearch} searchInputRef={searchInputRef}
+          onKeyTrigger={handleKeyTrigger}
           onRemoveBinding={handleRemoveBinding}
         />
       ) : (
-        <SettingsView
-          config={config}
-          onBack={() => setView("launcher")}
-          onExport={handleExport}
-          onImport={handleImport}
-        />
+        <SettingsView config={config} onBack={() => setView("launcher")}
+          onExport={handleExport} onImport={handleImport} />
       )}
+      <FooterBadge />
     </div>
   );
 
-  function handleKeyClick(key: string) {
-    const binding = keyBindings[key];
-    if (binding) {
-      bridge.executeBinding(key).then(() => bridge.hidePopup()).catch(console.error);
-    } else {
-      setEditingKey(key);
-    }
-  }
-
-  function handleKeyRightClick(e: React.MouseEvent, key: string) {
-    e.preventDefault();
-    setEditingKey(editingKey === key ? null : key);
+  function handleKeyTrigger(key: string) {
+    const b = keyBindings[key];
+    if (b) bridge.executeBinding(key).then(() => bridge.hidePopup()).catch(console.error);
+    else setEditingKey(key);
   }
 
   function handleRemoveBinding(key: string) {
     bridge.removeKeyBinding(key).then(() => {
-      const next = { ...keyBindings };
-      delete next[key];
-      setKeyBindings(next);
+      const n = { ...keyBindings }; delete n[key];
+      setKeyBindings(n);
+      setEditingKey(null);
     }).catch(console.error);
   }
 
   function handleExport() {
-    bridge.exportConfig().then((json) => {
-      const blob = new Blob([json], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
+    bridge.exportConfig().then((j) => {
+      const b = new Blob([j], { type: "application/json" });
       const a = document.createElement("a");
-      a.href = url;
-      a.download = "quick-launch-config.json";
-      a.click();
-      URL.revokeObjectURL(url);
+      a.href = URL.createObjectURL(b); a.download = "quick-launch-config.json"; a.click();
+      URL.revokeObjectURL(a.href);
     }).catch(console.error);
   }
 
   function handleImport() {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".json";
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        bridge.importConfig(reader.result as string)
-          .then(() => {
-            bridge.getKeyBindings().then((kb) => setKeyBindings(kb.bindings));
-            bridge.getConfig().then(setConfig);
-          })
-          .catch(console.error);
-      };
-      reader.readAsText(file);
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".json";
+    inp.onchange = (e) => {
+      const f = (e.target as HTMLInputElement).files?.[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = () => bridge.importConfig(r.result as string)
+        .then(() => { bridge.getKeyBindings().then((kb) => setKeyBindings(kb.bindings)); bridge.getConfig().then(setConfig); })
+        .catch(console.error);
+      r.readAsText(f);
     };
-    input.click();
+    inp.click();
   }
 }
 
+// ── Header Badge ──
+function HeaderBadge({ view, searchMode, onSettings }: { view: string; searchMode: boolean; onSettings: () => void }) {
+  return (
+    <div className="header-badge">
+      <span className="brand">
+        <span className="brand-icon">⚡</span>
+        <span className="brand-text">Quick Launch</span>
+      </span>
+      <span className="hints">
+        {searchMode ? "↑↓ 导航 · ↩ 启动 · Esc 返回" : `Space 搜索 · , 设置`}
+      </span>
+      {/* Version badge shows only in launcher view */}
+      {view === "launcher" && <span className="version-badge">v0.1</span>}
+    </div>
+  );
+}
+
+// ── Footer Badge ──
+function FooterBadge() {
+  return (
+    <div className="footer-badge">
+      <span>38 Keys</span>
+      <span>·</span>
+      <span>MIT</span>
+    </div>
+  );
+}
+
 // ── Launcher View ──
-function LauncherView({
-  searchMode, searchQuery, searchResults, selectedIndex, editingKey, keyBindings,
-  onSearch, searchInputRef, onKeyClick, onKeyRightClick, onRemoveBinding,
-}: {
-  searchMode: boolean;
-  searchQuery: string;
-  searchResults: AppInfo[];
-  selectedIndex: number;
-  editingKey: string | null;
-  keyBindings: Record<string, Binding>;
-  onSearch: (q: string) => void;
-  searchInputRef: React.RefObject<HTMLInputElement | null>;
-  onKeyClick: (key: string) => void;
-  onKeyRightClick: (e: React.MouseEvent, key: string) => void;
-  onRemoveBinding: (key: string) => void;
+function LauncherView(p: {
+  searchMode: boolean; searchQuery: string; searchResults: AppInfo[];
+  selectedIndex: number; editingKey: string | null; keyBindings: Record<string, Binding>;
+  onSearch: (q: string) => void; searchInputRef: React.RefObject<HTMLInputElement | null>;
+  onKeyTrigger: (k: string) => void; onRemoveBinding: (k: string) => void;
 }) {
+  if (p.searchMode) return <SearchView {...p} />;
+  return <KeyGridView {...p} />;
+}
+
+function SearchView(p: LauncherViewProps) {
   return (
     <div className="launcher">
-      {searchMode ? (
-        <div className="search-container">
-          <input
-            ref={searchInputRef as React.RefObject<HTMLInputElement>}
-            className="search-input"
-            placeholder="搜索应用 (首字母 / 拼音 / 名称)..."
-            value={searchQuery}
-            onChange={(e) => onSearch(e.target.value)}
-            autoFocus
-          />
-          <div className="search-results">
-            {searchResults.map((app, i) => (
-              <div
-                key={app.path}
-                className={`search-item ${i === selectedIndex ? "selected" : ""} ${i < 9 ? "has-number" : ""}`}
-                onClick={() => bridge.launchApp(app.path).then(() => bridge.hidePopup())}
-              >
-                <span className="item-number">{i < 9 ? i + 1 : 0}</span>
-                <span className="item-name">{app.name}</span>
-                <span className="item-path">{app.path.replace("/Applications/", "")}</span>
-              </div>
-            ))}
-            {searchResults.length === 0 && searchQuery && (
-              <div className="no-results">无搜索结果</div>
-            )}
+      <div className="search-wrap">
+        <div className="search-icon">🔍</div>
+        <input ref={p.searchInputRef as React.RefObject<HTMLInputElement>}
+          className="search-input" autoFocus
+          placeholder="搜索应用 (名称 / 拼音 / 首字母)..."
+          value={p.searchQuery} onChange={(e) => p.onSearch(e.target.value)} />
+      </div>
+      <div className="search-list">
+        {p.searchResults.map((app, i) => (
+          <div key={app.path}
+            className={`search-row ${i === p.selectedIndex ? "active" : ""}`}
+            onClick={() => bridge.launchApp(app.path).then(() => bridge.hidePopup())}>
+            <span className="sr-num">{i < 9 ? i + 1 : 0}</span>
+            <span className="sr-icon">📦</span>
+            <span className="sr-name">{app.name}</span>
+            <span className="sr-path">{app.path.replace("/Applications/", "…/")}</span>
           </div>
-        </div>
-      ) : (
-        <div className="key-grid-container">
-          <div className="grid-header">
-            <span className="hint">⌨️ 按键启动 · Space 搜索 · , 设置</span>
-          </div>
-          <div className="key-grid">
-            {KEY_LAYOUT.map((row, rowIdx) => (
-              <div key={rowIdx} className="key-row">
-                {row.map((key) => {
-                  const binding = keyBindings[key];
-                  return (
-                    <KeyCell
-                      key={key}
-                      keyChar={key}
-                      binding={binding}
-                      isEditing={editingKey === key}
-                      onClick={() => onKeyClick(key)}
-                      onRightClick={(e) => onKeyRightClick(e, key)}
-                      onRemove={() => onRemoveBinding(key)}
-                      onBind={(b) => {
-                        bridge.setKeyBinding(key, b).then(() => {
-                          bridge.getKeyBindings().then((kb) =>
-                            useStore.getState().setKeyBindings(kb.bindings)
-                          );
-                        });
-                      }}
-                    />
-                  );
-                })}
-              </div>
+        ))}
+        {p.searchResults.length === 0 && p.searchQuery && (
+          <div className="no-results">没有匹配的应用</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+type LauncherViewProps = typeof LauncherView extends (p: infer P) => any ? P : never;
+
+function KeyGridView(p: LauncherViewProps) {
+  return (
+    <div className="launcher">
+      <div className="key-grid">
+        {KEY_LAYOUT.map((row, ri) => (
+          <div key={ri} className="key-row">
+            {row.map((key) => (
+              <KeyCell key={key} keyChar={key}
+                binding={p.keyBindings[key]}
+                isEditing={p.editingKey === key}
+                onTrigger={() => p.onKeyTrigger(key)}
+                onRemove={() => p.onRemoveBinding(key)}
+              />
             ))}
           </div>
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   );
 }
 
 // ── Key Cell ──
-function KeyCell({
-  keyChar, binding, isEditing, onClick, onRightClick, onRemove, onBind,
-}: {
-  keyChar: string;
-  binding?: Binding;
-  isEditing: boolean;
-  onClick: () => void;
-  onRightClick: (e: React.MouseEvent) => void;
-  onRemove: () => void;
-  onBind: (b: Binding) => void;
-}) {
-  const [bindType, setBindType] = useState<string | null>(null);
+function KeyCell(p: { keyChar: string; binding?: Binding; isEditing: boolean;
+  onTrigger: () => void; onRemove: () => void }) {
+  const [bindStep, setBindStep] = useState<"type" | "form" | null>(null);
+  const [bindType, setBindType] = useState<string>("");
+  const [bindValue, setBindValue] = useState("");
+  const [bindName, setBindName] = useState("");
+  const s = useStore;
 
-  if (isEditing) {
+  // Reset on close
+  useEffect(() => { if (!p.isEditing) { setBindStep(null); setBindType(""); setBindValue(""); setBindName(""); } }, [p.isEditing]);
+
+  if (p.isEditing) {
     return (
       <div className="key-cell editing">
-        <div className="key-char">{keyChar}</div>
-        <div className="bind-options">
-          {!bindType ? (
-            <>
-              <button onClick={() => setBindType("app")}>App</button>
-              <button onClick={() => setBindType("folder")}>文件夹</button>
-              <button onClick={() => setBindType("url")}>网页</button>
-              <button onClick={() => setBindType("action")}>操作</button>
-            </>
-          ) : bindType === "action" ? (
-            <div className="action-list">
-              {BUILTIN_ACTIONS.map((a) => (
-                <button
-                  key={a.id}
-                  onClick={() => {
-                    onBind({ type: "action", action: a.id, name: a.name });
-                    useStore.getState().setEditingKey(null);
-                  }}
-                >
-                  {a.icon} {a.name}
-                </button>
-              ))}
+        <div className="key-char">{p.keyChar}</div>
+        <div className="bind-popup">
+          {!bindStep ? (
+            <div className="bind-type-btns">
+              <button className="btb" onClick={() => { setBindType("app"); setBindStep("form"); }}>📦 应用</button>
+              <button className="btb" onClick={() => { setBindType("folder"); setBindStep("form"); }}>📁 文件夹</button>
+              <button className="btb" onClick={() => { setBindType("url"); setBindStep("form"); }}>🌐 网页</button>
+              <button className="btb" onClick={() => { setBindStep(null); showActionPicker(); }}>⚡ 操作</button>
+              {p.binding && <button className="btb danger" onClick={p.onRemove}>删除绑定</button>}
+              <button className="btb dim" onClick={() => s().setEditingKey(null)}>取消</button>
             </div>
           ) : (
-            <BindForm
-              type={bindType as "app" | "folder" | "url"}
-              onBind={(b) => {
-                onBind(b);
-                useStore.getState().setEditingKey(null);
-              }}
-              onCancel={() => setBindType(null)}
-            />
+            <div className="bind-detail">
+              <button className="back-btn" onClick={() => setBindStep(null)}>← 返回</button>
+              {bindType === "app" || bindType === "folder" ? (
+                <BindFileForm type={bindType as "app"|"folder"} onDone={() => s().setEditingKey(null)} />
+              ) : (
+                <BindUrlForm onDone={() => s().setEditingKey(null)} />
+              )}
+            </div>
           )}
-          {binding && !bindType && (
-            <button className="remove-btn" onClick={onRemove}>删除绑定</button>
-          )}
-          <button className="cancel-btn" onClick={() => useStore.getState().setEditingKey(null)}>取消</button>
         </div>
       </div>
     );
   }
 
+  const icon = p.binding
+    ? p.binding.type === "action" ? BUILTIN_ACTIONS.find(a => a.id === (p.binding as any).action)?.icon
+      : p.binding.type === "app" ? "📦" : p.binding.type === "folder" ? "📁" : "🌐"
+    : null;
+
   return (
-    <div
-      className={`key-cell ${binding ? "bound" : ""}`}
-      onClick={onClick}
-      onContextMenu={onRightClick}
-    >
-      <div className="key-char">{keyChar}</div>
-      {binding && (
+    <div className={`key-cell ${p.binding ? "bound" : ""}`}
+      onClick={p.onTrigger} onContextMenu={(e) => { e.preventDefault(); s().setEditingKey(p.keyChar); }}>
+      <div className="key-char">{p.keyChar}</div>
+      {p.binding && (
         <div className="binding-info">
-          {binding.type === "action"
-            ? BUILTIN_ACTIONS.find((a) => a.id === (binding as any).action)?.icon || "⚡"
-            : binding.type === "app" ? "📦"
-            : binding.type === "folder" ? "📁"
-            : binding.type === "url" ? "🌐"
-            : "⚡"}
-          <span className="binding-name">
-            {binding.name}
-          </span>
+          <span className="bi-icon">{icon}</span>
+          <span className="bi-name">{p.binding.name}</span>
         </div>
       )}
     </div>
   );
+
+  function showActionPicker() {
+    const ac = BUILTIN_ACTIONS;
+    const doBind = (id: string, name: string) => {
+      bridge.setKeyBinding(p.keyChar, { type: "action", action: id, name } as any).then(() => {
+        bridge.getKeyBindings().then(kb => s().setKeyBindings(kb.bindings));
+      });
+    };
+    // Return to type selection; actions are shown inline in bind-type-btns already
+  }
 }
 
-// ── Bind Form ──
-function BindForm({
-  type, onBind, onCancel,
-}: {
-  type: "app" | "folder" | "url";
-  onBind: (b: Binding) => void;
-  onCancel: () => void;
-}) {
-  const [value, setValue] = useState("");
-  const [name, setName] = useState("");
+// ── Bind File Form (native picker) ──
+function BindFileForm({ type, onDone }: { type: "app" | "folder"; onDone: () => void }) {
+  const s = useStore;
+  const ek = s().editingKey!;
+  const [picked, setPicked] = useState(false);
 
-  const handleSubmit = () => {
-    if (!value.trim()) return;
-    if (type === "app") {
-      onBind({ type: "app", path: value, name: name || value.split("/").pop()?.replace(".app", "") || "App" });
-    } else if (type === "folder") {
-      onBind({ type: "folder", path: value, name: name || value.split("/").pop() || "文件夹" });
-    } else {
-      onBind({ type: "url", url: value, name: name || value });
+  const pick = async () => {
+    const opts: any = { title: type === "app" ? "选择应用" : "选择文件夹", multiple: false };
+    if (type === "app") opts.filters = [{ name: "应用程序", extensions: ["app"] }];
+    else opts.directory = true;
+    const result = await open(opts);
+    if (result) {
+      const path = result as string;
+      const name = path.split("/").pop()?.replace(/\.app$/i, "") || path;
+      const b: Binding = type === "app"
+        ? { type: "app", path, name }
+        : { type: "folder", path, name };
+      await bridge.setKeyBinding(ek, b);
+      bridge.getKeyBindings().then(kb => s().setKeyBindings(kb.bindings));
+      setPicked(true);
+      setTimeout(onDone, 300);
     }
   };
 
   return (
-    <div className="bind-form">
-      <input
-        placeholder={type === "app" ? "/Applications/Safari.app" : type === "folder" ? "~/Downloads" : "https://github.com"}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        autoFocus
-      />
-      <input
-        placeholder="显示名称 (可选)"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-      />
-      <button onClick={handleSubmit}>确认</button>
-      <button onClick={onCancel}>返回</button>
+    <div className="bind-file-form">
+      <p className="bf-hint">使用原生文件选择器选择{type === "app" ? "应用程序" : "文件夹"}</p>
+      <button className="pick-btn" onClick={pick} disabled={picked}>
+        {picked ? "✅ 已设置" : `选择${type === "app" ? "App" : "文件夹"}...`}
+      </button>
+    </div>
+  );
+}
+
+// ── Bind URL Form ──
+function BindUrlForm({ onDone }: { onDone: () => void }) {
+  const s = useStore;
+  const ek = s().editingKey!;
+  const [url, setUrl] = useState("");
+  const [name, setName] = useState("");
+
+  const submit = async () => {
+    if (!url.trim()) return;
+    const b: Binding = { type: "url", url: url.trim(), name: name.trim() || url.trim() };
+    await bridge.setKeyBinding(ek, b);
+    bridge.getKeyBindings().then(kb => s().setKeyBindings(kb.bindings));
+    onDone();
+  };
+
+  return (
+    <div className="bind-url-form">
+      <input placeholder="https://..." value={url} onChange={e => setUrl(e.target.value)} autoFocus
+        onKeyDown={e => e.key === "Enter" && submit()} />
+      <input placeholder="显示名称 (可选)" value={name} onChange={e => setName(e.target.value)}
+        onKeyDown={e => e.key === "Enter" && submit()} />
+      <button className="pick-btn" onClick={submit}>确认</button>
     </div>
   );
 }
 
 // ── Settings View ──
-function SettingsView({
-  config, onBack, onExport, onImport,
-}: {
-  config: Config | null;
-  onBack: () => void;
-  onExport: () => void;
-  onImport: () => void;
-}) {
+function SettingsView(p: { config: Config | null; onBack: () => void; onExport: () => void; onImport: () => void }) {
   const { theme, setTheme } = useStore();
   const [autostart, setAutostart] = useState(false);
+  const [dockVisible, setDockVisible] = useState(true);
+  const [menuBarVisible, setMenuBarVisible] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     bridge.autostartGet().then(setAutostart).catch(console.error);
   }, []);
 
+  const refreshApps = async () => {
+    setRefreshing(true);
+    const count = await bridge.refreshAppIndex();
+    setRefreshing(false);
+    alert(`已刷新应用索引，共 ${count} 个应用`);
+  };
+
   return (
     <div className="settings">
       <div className="settings-header">
-        <button onClick={onBack}>← 返回</button>
+        <button onClick={p.onBack} className="btn-back">←</button>
         <h2>设置</h2>
       </div>
       <div className="settings-body">
-        <div className="setting-row">
-          <label>主题</label>
-          <select
-            value={theme}
-            onChange={(e) => {
+        <div className="setting-group">
+          <div className="sg-title">外观</div>
+          <div className="setting-row">
+            <label>主题</label>
+            <select value={theme} onChange={e => {
               setTheme(e.target.value as any);
               document.documentElement.setAttribute("data-theme", e.target.value);
-            }}
-          >
-            <option value="auto">跟随系统</option>
-            <option value="light">浅色</option>
-            <option value="dark">深色</option>
-          </select>
-        </div>
-        <div className="setting-row">
-          <label>开机启动</label>
-          <input
-            type="checkbox"
-            checked={autostart}
-            onChange={(e) => {
-              bridge.autostartSet(e.target.checked)
-                .then(() => setAutostart(e.target.checked))
-                .catch(console.error);
-            }}
-          />
-        </div>
-        <div className="setting-row">
-          <label>快捷键</label>
-          <span className="value">{config?.hotkey || "Control+Space"}</span>
-        </div>
-        <div className="setting-row">
-          <label>配置管理</label>
-          <div className="config-buttons">
-            <button onClick={onExport}>导出配置</button>
-            <button onClick={onImport}>导入配置</button>
+            }}>
+              <option value="auto">跟随系统</option>
+              <option value="light">浅色</option>
+              <option value="dark">深色</option>
+            </select>
           </div>
         </div>
-        <div className="setting-row about">
-          <label>Quick Launch v0.1.0</label>
-          <span className="value">MIT License · junhey</span>
+
+        <div className="setting-group">
+          <div className="sg-title">系统</div>
+          <div className="setting-row">
+            <label>开机启动</label>
+            <input type="checkbox" checked={autostart} onChange={e => {
+              bridge.autostartSet(e.target.checked).then(() => setAutostart(e.target.checked)).catch(console.error);
+            }} />
+          </div>
+          <div className="setting-row">
+            <label>程序坞图标</label>
+            <span className="value">{dockVisible ? "显示" : "隐藏"} (需重启生效)</span>
+          </div>
+          <div className="setting-row">
+            <label>菜单栏图标</label>
+            <span className="value">{menuBarVisible ? "已显示" : "已隐藏"}</span>
+          </div>
+          <div className="setting-row">
+            <label>全局快捷键</label>
+            <span className="value monospace">{p.config?.hotkey || "Control+Space"}</span>
+          </div>
+        </div>
+
+        <div className="setting-group">
+          <div className="sg-title">数据管理</div>
+          <div className="setting-row">
+            <label>应用索引</label>
+            <button className="btn-sm" onClick={refreshApps} disabled={refreshing}>
+              {refreshing ? "刷新中..." : "手动刷新"}
+            </button>
+          </div>
+          <div className="setting-row">
+            <label>配置</label>
+            <div className="btn-row">
+              <button className="btn-sm" onClick={p.onExport}>导出</button>
+              <button className="btn-sm" onClick={p.onImport}>导入</button>
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-footer">
+          <span>Quick Launch v0.1.0 · MIT · junhey</span>
         </div>
       </div>
     </div>
