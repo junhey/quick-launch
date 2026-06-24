@@ -198,7 +198,6 @@ fn cjk_to_pinyin_initial(c: char) -> char {
         0x5730 => 'D', // 地
         0x5740 => 'Z', // 址
         0x8054 => 'L', // 联
-        0x7CFB => 'X', // 系
         0x4EBA => 'R', // 人
         0x6D88 => 'X', // 消
         0x606F => 'X', // 息
@@ -229,11 +228,8 @@ fn cjk_to_pinyin_initial(c: char) -> char {
         0x5207 => 'Q', // 切
         0x622A => 'J', // 截
         0x5C4F => 'P', // 屏
-        0x5F55 => 'L', // 录
         0x5236 => 'Z', // 制
         0x6539 => 'G', // 改
-        0x56FE => 'T', // 图
-        0x7247 => 'P', // 片
         // Default: return the character itself for unmapped CJK
         _ => c,
     }

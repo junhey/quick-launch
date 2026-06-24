@@ -1,6 +1,5 @@
 use crate::state::Binding;
 use crate::app_launcher;
-use std::collections::HashMap;
 
 /// Execute a binding action.
 pub fn execute(binding: &Binding) -> Result<(), String> {
@@ -21,6 +20,7 @@ pub fn execute(binding: &Binding) -> Result<(), String> {
 }
 
 /// Get the list of available built-in actions.
+#[allow(dead_code)]
 pub fn available_actions() -> Vec<(String, String)> {
     vec![
         ("lock_screen".to_string(), "锁屏".to_string()),

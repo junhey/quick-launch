@@ -1,12 +1,11 @@
 use crate::app_index;
 use crate::app_launcher;
 use crate::key_bindings;
-use crate::state::{AppState, AppInfo, Binding, Config, KeyBindings};
+use crate::state::{AppInfo, AppState, Binding, Config, KeyBindings};
 use crate::storage;
 use crate::tray;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager, State};
 
 /// Export bundle structure for import/export
 #[derive(Serialize, Deserialize)]
@@ -47,7 +46,7 @@ pub fn search_apps(query: String, state: State<'_, AppState>) -> Vec<AppInfo> {
             let name_lower = app.name.to_lowercase();
             let initials_lower = app.pinyin_initials.to_lowercase();
 
-            let score = if name_lower == &query_lower {
+            let score = if name_lower == query_lower {
                 100 // Exact match
             } else if name_lower.starts_with(&query_lower) {
                 80 // Prefix match

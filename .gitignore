@@ -1,6 +1,7 @@
 # Compiled output
 node_modules/
-dist/
+dist/*
+!dist/index.html
 build/
 .DS_Store
 
