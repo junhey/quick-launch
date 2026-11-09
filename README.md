@@ -1,106 +1,108 @@
 # Quick Launch
 
-> Mac 启动器 · Control 呼出面板，按键直达
+> Mac Launcher · Press Control to summon the panel, bind anything to a key
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Tauri](https://img.shields.io/badge/Tauri-2-FFC131)](https://tauri.app)
 ![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)
 [![CI](https://github.com/junhey/quick-launch/actions/workflows/ci.yml/badge.svg)](https://github.com/junhey/quick-launch/actions/workflows/ci.yml)
 
-一个开源的 macOS 启动器。按下 `Control+Space` 呼出面板，将 App、文件夹、网页和内置操作绑定到 38 个按键上，熟悉后直接 `Control+Space` → 对应键，一秒触发。
+[中文](README.zh-CN.md)
 
-## 特性
+An open-source macOS launcher. Press `Control+Space` to summon the panel, bind apps, folders, URLs, and built-in actions to 38 keys. Once you're familiar with the layout, `Control+Space` → key triggers anything in under a second.
 
-- **Control+Space 呼出面板** — 全局快捷键，随时呼出/隐藏
-- **38 键布局** — 绑定 App / 文件夹 / 网页 / 内置操作到顺手按键
-- **Space 搜索** — 首字母 / 拼音 / 中文名匹配，Return 或数字键直达
-- **内置操作** — 锁屏、回桌、切换主题
-- **浅色 / 深色主题** — Tab 键快速切换，支持跟随系统
-- **菜单栏常驻** — 系统托盘图标，失焦自动隐藏
-- **开机启动** — macOS 登录项，SMAppService + LaunchAgent 双后端
-- **配置导入导出** — JSON 格式，方便迁移和分享
-- **轻量** — Tauri 2.0 (Rust + React)，~8MB 体积，~40MB 内存
+## Features
 
-## 下载安装
+- **Control+Space panel** — Global hotkey to toggle the launcher
+- **38-key layout** — Bind apps / folders / URLs / built-in actions to convenient keys
+- **Space to search** — Match by first letter / pinyin initials / name, launch with Return or number keys
+- **Built-in actions** — Lock screen, show desktop, toggle theme
+- **Light / Dark theme** — Quick toggle with Tab, supports system auto
+- **Menu bar resident** — System tray icon, auto-hide on focus loss
+- **Launch at login** — SMAppService + LaunchAgent dual backend
+- **Config import/export** — JSON format for easy migration and sharing
+- **Lightweight** — Tauri 2.0 (Rust + React), ~8MB binary, ~40MB RAM
 
-推送版本 tag（如 `v0.1.0`）后，GitHub Actions 自动构建并发布 `.dmg` 文件到 [Releases](https://github.com/junhey/quick-launch/releases) 页面，下载后拖入 Applications 即可使用。
+## Download
 
-> 首次启动需在系统设置中授予辅助功能权限。未签名版本需右键 → 打开绕过 Gatekeeper。
+After pushing a version tag (e.g. `v0.1.0`), GitHub Actions automatically builds and publishes the `.dmg` to the [Releases](https://github.com/junhey/quick-launch/releases) page. Download and drag to Applications.
 
-## 使用方法
+> First launch requires granting Accessibility permission in System Settings. Unsigned builds require right-click → Open to bypass Gatekeeper.
 
-| 操作 | 快捷键 |
-|------|--------|
-| 呼出/隐藏面板 | `Control+Space` |
-| 搜索应用 | `Space`（面板内） |
-| 启动搜索结果 | `Return` 或 `1-0` |
-| 切换主题 | `Tab` |
-| 打开设置 | `,` |
-| 退出面板 | `Esc` 或点击外部 |
+## Usage
 
-### 按键绑定
+| Action | Shortcut |
+|--------|----------|
+| Toggle panel | `Control+Space` |
+| Search apps | `Space` (in panel) |
+| Launch result | `Return` or `1-0` |
+| Toggle theme | `Tab` |
+| Open settings | `,` |
+| Dismiss panel | `Esc` or click outside |
 
-1. 呼出面板后，点击任意空键进入绑定编辑
-2. 选择绑定类型：App / 文件夹 / 网页 / 操作
-3. 输入路径或 URL，确认绑定
-4. 之后按对应键即可快速触发
+### Key Bindings
 
-## 开发
+1. Summon the panel, click any empty key to enter binding editor
+2. Choose binding type: App / Folder / URL / Action
+3. Enter path or URL, confirm
+4. Press the key anytime to trigger
+
+## Development
 
 ```bash
-# 安装依赖
+# Install dependencies
 pnpm install
 
-# 开发模式
+# Development mode
 pnpm tauri dev
 
-# 构建生产版本
+# Production build
 pnpm tauri build
 
-# 运行测试
-pnpm test          # 前端测试
-cd src-tauri && cargo test  # Rust 测试
+# Run tests
+pnpm test          # Frontend tests
+cd src-tauri && cargo test  # Rust tests
 ```
 
-### 环境要求
+### Prerequisites
 
 - Node.js 22+
 - Rust (stable)
 - Xcode Command Line Tools
 - pnpm 10+
 
-## 项目布局
+## Project Layout
 
 ```
 quick-launch/
-├── src/                    # React 前端
-│   ├── App.tsx             # 主面板 + 设置面板
-│   ├── bridge.ts           # JS <-> Rust IPC 桥接
-│   ├── store.ts            # Zustand 状态管理
-│   ├── types.ts            # TypeScript 类型
-│   ├── constants.ts        # 38 键布局常量
-│   └── styles.css          # 毛玻璃效果 + 深浅色主题
-├── src-tauri/              # Rust 后端
+├── src/                    # React frontend
+│   ├── App.tsx             # Main panel + settings
+│   ├── bridge.ts           # JS <-> Rust IPC bridge
+│   ├── store.ts            # Zustand state management
+│   ├── types.ts            # TypeScript types
+│   ├── constants.ts        # 38-key layout constants
+│   └── styles.css          # Glass effect + themes
+├── src-tauri/              # Rust backend
 │   ├── src/
-│   │   ├── lib.rs          # Tauri 应用初始化
-│   │   ├── commands.rs     # IPC 命令接口
-│   │   ├── state.rs        # 全局状态
-│   │   ├── storage.rs      # JSON 数据持久化
-│   │   ├── hotkey.rs       # 全局快捷键解析
-│   │   ├── tray.rs         # 系统托盘 + 失焦隐藏
-│   │   ├── autostart.rs    # macOS 开机启动
-│   │   ├── app_index.rs    # 应用索引扫描
-│   │   ├── app_launcher.rs # 应用启动器
-│   │   └── key_bindings.rs # 按键绑定管理
-│   └── tauri.conf.json     # Tauri 配置
+│   │   ├── lib.rs          # Tauri app init
+│   │   ├── commands.rs     # IPC command interface
+│   │   ├── state.rs        # Global state
+│   │   ├── storage.rs      # JSON persistence
+│   │   ├── hotkey.rs       # Global shortcut parsing
+│   │   ├── tray.rs         # System tray + focus hide
+│   │   ├── autostart.rs    # macOS launch at login
+│   │   ├── app_index.rs    # App index scanner
+│   │   ├── app_launcher.rs # App launcher
+│   │   └── key_bindings.rs # Key binding manager
+│   └── tauri.conf.json     # Tauri config
 └── .github/workflows/      # CI/CD
 ```
 
-## 鸣谢
+## Acknowledgments
 
-- [Tauri](https://tauri.app) — 跨平台桌面应用框架
-- [Raycast](https://raycast.com) / [Alfred](https://alfredapp.com) — 启动器产品设计参考
+- [Tauri](https://tauri.app) — Cross-platform desktop framework
+- [Raycast](https://raycast.com) / [Alfred](https://alfredapp.com) — Launcher design reference
 
-## 许可
+## License
 
 MIT (c) 2026 junhey
